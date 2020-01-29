@@ -35,17 +35,16 @@ class QuestionGenerator {
   String iAmDoneText = 'Well done on completing the test! Check out your score below:';
 
   String getQuestion(int questionNumber) {
-    if(questionNumber > questionBank.length){
+    if(questionNumber >= questionBank.length){
       return iAmDoneText;
     }
     return questionBank[questionNumber].text;
   }
 
   List<String> getOptions(int questionNumber) {
-    if(questionNumber > questionBank.length){
-
+    if(questionNumber < questionBank.length){
+      return questionBank[questionNumber].options.items;
     }
-    return questionBank[questionNumber].options.items;
   }
 
   String getAnswer(int questionNumber) {
