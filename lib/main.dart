@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -13,15 +14,19 @@ int _score = 0;
 bool _showOptions = true;
 bool _showGrade = false;
 bool _lastQuestion = false;
-bool _showExitButton = false;
+bool _showRestartButton = false;
 bool _shownGrade = false;
 bool _showTimer = true;
+bool _hasUserSelectedAnOption = false;
+bool _newQuestion = false;
 String askQuestion = 'What would you like to do?';
 int _start = 10;
 int _current = 10;
 
+StreamSubscription<CountdownTimer> _listener;
+
 QuestionGenerator _questionGenerator = new QuestionGenerator();
-int _overAllScore= _questionGenerator.questionBank.length * 2;
+int _overAllScore = _questionGenerator.questionBank.length * 2;
 
 void main() => runApp(Quizzler());
 
@@ -53,26 +58,134 @@ class Quizzler extends StatelessWidget {
 class QuizPage extends StatefulWidget {
   @override
   _QuizPageState createState() => _QuizPageState();
-
 }
 
 class _QuizPageState extends State<QuizPage> {
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
 
-  void startTimer() {
-    CountdownTimer countDownTimer = new CountdownTimer(
+  void _startTimer() {
+    CountdownTimer _countDownTimer = new CountdownTimer(
       new Duration(seconds: _start),
       new Duration(seconds: 1),
     );
 
-    var sub = countDownTimer.listen(null);
-    sub.onData((duration) {
-      setState(() { _current = _start - duration.elapsed.inSeconds; });
+    if (_newQuestion) {
+      _listener.cancel();
+    }
+
+    _newQuestion = _newQuestion ? false : _newQuestion;
+
+    _listener = _countDownTimer.listen(null);
+    _listener.onData((duration) {
+      setState(() {
+        _current = _start - duration.elapsed.inSeconds;
+      });
     });
 
-    sub.onDone(() {
-      print("Done");
-      sub.cancel();
+    _listener.onDone(() {
+      setState(() {
+        if (_hasUserSelectedAnOption) {
+          _checkIfCorrectAnswerIsPicked();
+        }
+        _getNewQuestion();
+        _checkIfLastQuestionIsBeingDisplayed();
+        _checkIfUserHasGoneBeyondLastQuestionThenCancelListener();
+      });
     });
+  }
+
+  List<Widget> generateRadioButtonsViaNumberOfOptionsAvailable(int number) {
+    List<Widget> listOfRadioButtons = [];
+    if (number >= _questionGenerator.questionBank.length) {
+      return listOfRadioButtons;
+    }
+    for (int i = 0; i < _questionGenerator.getOptions(number).length; i++) {
+      listOfRadioButtons.add(new RadioListTile(
+        title: Text(
+          _questionGenerator.getOptions(number)[i],
+          style: TextStyle(
+            fontSize: 25.0,
+            color: Colors.black,
+          ),
+        ),
+        value: number >= _questionGenerator.questionBank.length
+            ? ''
+            : _questionGenerator.getOptions(number)[i],
+        groupValue: _groupValue,
+        onChanged: (String value) {
+          setState(() {
+            _hasUserSelectedAnOption = true;
+            _groupValue = value;
+            _selectedAnswer = value.split(")")[0];
+          });
+        },
+      ));
+    }
+    return listOfRadioButtons;
+  }
+
+  int returnScoreInPercentage(int score) {
+    var calculatedScore = (score / _overAllScore) * 100;
+    return calculatedScore.floor();
+  }
+
+  void _checkIfCorrectAnswerIsPicked() {
+    _correctAnswer = _questionGenerator.getAnswer(_questionNumber);
+    if (_selectedAnswer == _correctAnswer) {
+      _score += 2;
+    }
+  }
+
+  void _getNewQuestion() {
+    if (_questionNumber <= _questionGenerator.questionBank.length - 1) {
+      _hasUserSelectedAnOption = false;
+      _questionNumber++;
+      _newQuestion = true;
+      _start = _current = 10;
+      _startTimer();
+    }
+  }
+
+  void _checkIfLastQuestionIsBeingDisplayed() {
+    if (_questionNumber == _questionGenerator.questionBank.length - 1) {
+      _lastQuestion = true;
+    }
+  }
+
+  void _checkIfUserHasGoneBeyondLastQuestion() {
+    if (_questionNumber > _questionGenerator.questionBank.length - 1) {
+      _showGrade = true;
+      _showOptions = false;
+      _showRestartButton = true;
+      _showTimer = false;
+    }
+  }
+
+  void _checkIfUserHasGoneBeyondLastQuestionThenCancelListener() {
+    if (_questionNumber > _questionGenerator.questionBank.length - 1) {
+      _showGrade = true;
+      _showOptions = false;
+      _showRestartButton = true;
+      _showTimer = false;
+      _listener.cancel();
+    }
+  }
+
+  void _restartQuizzler() {
+    _questionNumber = 0;
+    _showGrade = false;
+    _showOptions = true;
+    _showRestartButton = false;
+    _showTimer = true;
+    _lastQuestion = false;
+    _score = 0;
+    _listener.cancel();
+    _start = _current = 10;
+    _startTimer();
   }
 
   @override
@@ -97,10 +210,10 @@ class _QuizPageState extends State<QuizPage> {
           ),
         ),
         Expanded(
-          flex: 1,
+          flex: _showGrade ? 1 : 2,
           child: Padding(
             padding: EdgeInsets.all(10.0),
-            child: Column(
+            child: ListView(
               children: <Widget>[
                 Text(
                   _shownGrade
@@ -123,74 +236,9 @@ class _QuizPageState extends State<QuizPage> {
             flex: 3,
             child: Padding(
               padding: EdgeInsets.all(10.0),
-              child: Column(
-                children: <Widget>[
-                  RadioListTile(
-                    title: Text(
-                      _questionNumber >= _questionGenerator.questionBank.length ? '' : _questionGenerator.getOptions(_questionNumber)[0],
-                      style: TextStyle(
-                        fontSize: 25.0,
-                        color: Colors.black,
-                      ),
-                    ),
-                    value:  _questionNumber >= _questionGenerator.questionBank.length ? '' : _questionGenerator.getOptions(_questionNumber)[0],
-                    groupValue: _groupValue,
-                    onChanged: (String value) {
-                      setState(() {
-                        _groupValue = value;
-                        _selectedAnswer = value.split(")")[0];
-                      });
-                    },
-                  ),
-                  RadioListTile(
-                      title: Text(
-                        _questionNumber >= _questionGenerator.questionBank.length ? '' : _questionGenerator.getOptions(_questionNumber)[1],
-                        style: TextStyle(
-                          fontSize: 25.0,
-                          color: Colors.black,
-                        ),
-                      ),
-                      value: _questionNumber >= _questionGenerator.questionBank.length ? '' : _questionGenerator.getOptions(_questionNumber)[1],
-                      groupValue: _groupValue,
-                      onChanged: (String value) {
-                        setState(() {
-                          _groupValue = value;
-                          _selectedAnswer = value.split(")")[0];
-                        });
-                      }),
-                  RadioListTile(
-                      title: Text(
-                        _questionNumber >= _questionGenerator.questionBank.length ? '' : _questionGenerator.getOptions(_questionNumber)[2],
-                        style: TextStyle(
-                          fontSize: 25.0,
-                          color: Colors.black,
-                        ),
-                      ),
-                      value: _questionNumber >= _questionGenerator.questionBank.length ? '' : _questionGenerator.getOptions(_questionNumber)[2],
-                      groupValue: _groupValue,
-                      onChanged: (String value) {
-                        setState(() {
-                          _groupValue = value;
-                          _selectedAnswer = value.split(")")[0];
-                        });
-                      }),
-                  RadioListTile(
-                      title: Text(
-                        _questionNumber >= _questionGenerator.questionBank.length ? '' : _questionGenerator.getOptions(_questionNumber)[3],
-                        style: TextStyle(
-                          fontSize: 25.0,
-                          color: Colors.black,
-                        ),
-                      ),
-                      value: _questionNumber >= _questionGenerator.questionBank.length ? '' : _questionGenerator.getOptions(_questionNumber)[3],
-                      groupValue: _groupValue,
-                      onChanged: (String value) {
-                        setState(() {
-                          _groupValue = value;
-                          _selectedAnswer = value.split(")")[0];
-                        });
-                      }),
-                ],
+              child: ListView(
+                children: generateRadioButtonsViaNumberOfOptionsAvailable(
+                    _questionNumber),
               ),
             ),
           ),
@@ -203,13 +251,12 @@ class _QuizPageState extends State<QuizPage> {
               child: Column(
                 children: <Widget>[
                   Text(
-                    '$_score/$_overAllScore',
+                    '${returnScoreInPercentage(_score)}%',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 35.0,
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold
-                    ),
+                        fontSize: 35.0,
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -217,25 +264,17 @@ class _QuizPageState extends State<QuizPage> {
           ),
         ),
         Visibility(
-          visible: !_showExitButton,
+          visible: !_showRestartButton,
           child: Container(
             height: 100.0,
             child: Padding(
               padding: EdgeInsets.all(15.0),
-              child: FlatButton(
+              child: RaisedButton(
                 textColor: Colors.white,
                 color: Colors.black,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
-//                    Icon(
-//                      Icons.thumb_up,
-//                      color: Colors.white,
-//                      size: 20.0,
-//                    ),
-//                    SizedBox(
-//                      width: 10.0,
-//                    ),
                     Text(
                       _lastQuestion ? 'Finish' : 'Submit',
                       style: TextStyle(
@@ -245,36 +284,25 @@ class _QuizPageState extends State<QuizPage> {
                     ),
                   ],
                 ),
-                onPressed: () {
-                  setState(() {
-                    _correctAnswer =
-                        _questionGenerator.getAnswer(_questionNumber);
-                    if (_selectedAnswer == _correctAnswer) {
-                      _score += 2;
-                    }
-                    if (_questionNumber <=
-                        _questionGenerator.questionBank.length - 1) {
-                      _questionNumber++;
-                    }
-                    if (_questionNumber ==
-                        _questionGenerator.questionBank.length - 1) {
-                      _lastQuestion = true;
-                    }
-                    if (_questionNumber >
-                        _questionGenerator.questionBank.length - 1) {
-                      _showGrade = true;
-                      _showOptions = false;
-                      _showExitButton = true;
-                      _showTimer = false;
-                    }
-                  });
-                },
+                onPressed: !_hasUserSelectedAnOption
+                    ? null
+                    : () {
+                        setState(() {
+                          _checkIfCorrectAnswerIsPicked();
+
+                          _getNewQuestion();
+
+                          _checkIfLastQuestionIsBeingDisplayed();
+
+                          _checkIfUserHasGoneBeyondLastQuestion();
+                        });
+                      },
               ),
             ),
           ),
         ),
         Visibility(
-          visible: _showExitButton,
+          visible: _showRestartButton,
           child: Container(
             height: 100.0,
             child: Padding(
@@ -294,7 +322,7 @@ class _QuizPageState extends State<QuizPage> {
 //                      width: 10.0,
 //                    ),
                     Text(
-                      'Good bye!',
+                      'Restart',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 20.0,
@@ -303,7 +331,9 @@ class _QuizPageState extends State<QuizPage> {
                   ],
                 ),
                 onPressed: () {
-                  exit(0);
+                  setState(() {
+                    _restartQuizzler();
+                  });
                   //The user picked true.
                 },
               ),

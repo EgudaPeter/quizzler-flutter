@@ -30,6 +30,24 @@ class QuestionGenerator {
         'd) int arr() = new int(3);'
       ], answer: 'c'),
     ),
+    Question(
+      text: 'Which of the following is a correct way to declare a multidimensional array in Java?',
+      options: QuestionOption(items: [
+        'a) int[] arr;',
+        'b) int arr[[]];',
+        'c) int[][]arr;',
+        'd) int[[]] arr;'
+      ], answer: 'c'),
+    ),
+    Question(
+      text: 'When does the ArrayIndexOutOfBoundsException occur?',
+      options: QuestionOption(items: [
+        'a) Compile-time',
+        'b) Run-time',
+        'c) Not an error',
+        'd) Not an exception at all'
+      ], answer: 'b'),
+    ),
   ];
 
   String iAmDoneText = 'Well done on completing the test! Check out your score below:';
